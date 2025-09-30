@@ -49,13 +49,13 @@
       display: flex;
       align-items: center;
       gap: 12px;
-      min-height: 48px;
+      min-height: 40px;
     }
 
     .brand-logo {
       width: 140px;
-      height: auto;
-      display: block;
+      height: 40px;
+      object-fit: contain;
     }
 
     h1 {
@@ -133,8 +133,7 @@
 
     .card {
       box-shadow: 0 3px 10px rgba(2, 6, 23, 0.06);
-      /* IMPORTANT: make text visible (override global button white text) */
-      color: var(--blox-dark) !important;
+      color: var(--blox-dark) !important; /* ensure visible text on buttons */
       text-align: left;
     }
 
@@ -143,27 +142,455 @@
       border-color: var(--blox-blue);
     }
 
-    /* Visually indicate assigned cards but keep them interactive so users can reassign */
     .card.assigned-card {
       opacity: 0.6;
     }
 
     .slot {
-      min-height: 92px;
+      min-height: 86px;
       display: grid;
-      align-items: start;
-      gap: 10px;
+      align-items: center;
+      position: relative;
+      padding-top: 48px; /* space for label row with image */
     }
 
-    .slot .top {
+    .slot .label {
+      position: absolute;
+      top: 6px;
+      left: 10px;
+      right: 10px;
       display: flex;
       align-items: center;
-      gap: 12px;
-      min-height: 48px;
+      gap: 10px;
+      font-size: 13px;
+      font-weight: 700;
+      color: #4B5563;
+      text-transform: uppercase;
+      letter-spacing: .02em;
     }
 
-    .actor-photo {
-      width: 48px;
-      height: 48px;
-      border-radius: 8px;
-  
+    .slot .label .avatar {
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      object-fit: cover;
+      background: #E2E8F0;
+      border: 1px solid #CBD5E1;
+      flex: 0 0 28px;
+    }
+
+    .assigned {
+      background: #F1F5F9;
+      border-radius: 10px;
+      padding: 10px;
+      font-size: 15px;
+      color: #111827;
+    }
+
+    .slot.correct { border-color: var(--blox-green); }
+    .slot.incorrect { border-color: var(--blox-red); }
+
+    /* Drop target highlight */
+    .slot.drop-target {
+      border-color: var(--blox-blue);
+      box-shadow: 0 0 0 3px rgba(12, 90, 219, 0.15) inset;
+    }
+
+    .hint {
+      margin-top: 10px;
+      color: #475569;
+      font-size: 14px;
+      min-height: 22px;
+    }
+
+    .toast {
+      position: fixed;
+      left: 50%;
+      bottom: 22px;
+      transform: translateX(-50%);
+      background: #111827;
+      color: white;
+      padding: 12px 16px;
+      border-radius: 12px;
+      font-size: 15px;
+      box-shadow: 0 8px 18px rgba(2, 6, 23, 0.35);
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity .2s ease;
+      z-index: 10000;
+    }
+    .toast.show { opacity: 1; }
+
+    .success {
+      display: none;
+      margin-top: 12px;
+      background: #ECFDF5;
+      color: #065F46;
+      border: 1px solid #A7F3D0;
+      padding: 14px;
+      border-radius: 12px;
+      font-weight: 600;
+    }
+
+    .footer {
+      margin-top: 14px;
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <div class="brand">
+        <img id="brandLogo" class="brand-logo" alt="Infoblox logo" />
+        <div>
+          <h1>Threat Actor Match</h1>
+          <div class="hint" id="hint">Match each description to the correct actor, then tap “Check Answers”.</div>
+        </div>
+      </div>
+      <div class="controls">
+        <button class="secondary" id="resetBtn" aria-label="Reset game">Reset</button>
+        <button id="checkBtn" aria-label="Check answers">Check Answers</button>
+      </div>
+    </header>
+
+    <div class="grid">
+      <section class="panel" aria-labelledby="descTitle">
+        <h2 id="descTitle">Descriptions</h2>
+        <div class="list" id="descList" role="list"></div>
+      </section>
+
+      <section class="panel" aria-labelledby="actorTitle">
+        <h2 id="actorTitle">Actors</h2>
+        <div class="slots" id="slots" role="list"></div>
+        <div class="success" id="successMsg">Perfect! You matched them all correctly.</div>
+        <div class="footer">
+          <button class="secondary" id="tryAgainBtn" aria-label="Try again" style="display:none;">Try Again</button>
+        </div>
+      </section>
+    </div>
+  </div>
+
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+  <script>
+    // 0) CONFIG: point this to your logo file (PNG or SVG). Place the file in assets/.
+    const LOGO_SRC = 'assets/infoblox-logo.svg';
+
+    // 1) CONTENT: Replace with your approved actors/descriptions and image files.
+    // NOTE: You can use 4 or 5 actors. The UI will adapt automatically.
+    const PAIRS = [
+      { actor: "VexTrio Viper", img: "assets/vextrio-viper.png", description: "A large criminal enterprise using TDS, lookalike domains and RDGAs to deliver malware and scams at scale." },
+      { actor: "Savvy Seahorse", img: "assets/savvy-seahorse.png", description: "A persistent investment fraud actor that uses DNS CNAME records as a TDS, often via social media ads." },
+      { actor: "Loopy Lizard", img: "assets/loopy-lizard.png", description: "A phishing actor that creates lookalike domains for banks and government services to steal credentials." },
+      { actor: "Decoy Dog", img: "assets/decoy-dog.png", description: "A DNS C2 malware toolkit, discovered via DNS logs and used by multiple actors for command and control." },
+      // Added per request:
+      { actor: "Revolver Rabbit", img: "assets/revolver-rabbit.png", description: "An actor associated with rotating domain infrastructure and short-lived campaigns leveraging DNS for redirection." } // Replace with your approved wording if needed
+    ];
+
+    // 2) SHUFFLE helper
+    function shuffle(arr) {
+      const a = arr.slice();
+      for (let i = a.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [a[i], a[j]] = [a[j], a[i]];
+      }
+      return a;
+    }
+
+    // 3) STATE
+    let assignments = new Map(); // actor -> description text
+    let selectedDescId = null;
+    let shuffledDescs = [];
+    let shuffledActors = [];
+
+    const brandLogo = document.getElementById('brandLogo');
+    const descList = document.getElementById('descList');
+    const slotsEl = document.getElementById('slots');
+    const toast = document.getElementById('toast');
+    const successMsg = document.getElementById('successMsg');
+    const tryAgainBtn = document.getElementById('tryAgainBtn');
+    const checkBtn = document.getElementById('checkBtn');
+    const resetBtn = document.getElementById('resetBtn');
+    const hint = document.getElementById('hint');
+
+    function init() {
+      // set logo
+      brandLogo.src = LOGO_SRC;
+      brandLogo.onerror = () => {
+        // if logo missing, hide img to keep header clean
+        brandLogo.style.display = 'none';
+      };
+
+      assignments.clear();
+      successMsg.style.display = 'none';
+      tryAgainBtn.style.display = 'none';
+      hint.textContent = `Match each description to the correct actor, then tap “Check Answers”.`;
+
+      shuffledActors = shuffle(PAIRS);
+      shuffledDescs = shuffle(PAIRS);
+
+      renderDescriptions();
+      renderSlots();
+    }
+
+    function renderDescriptions() {
+      descList.innerHTML = '';
+      shuffledDescs.forEach((pair, idx) => {
+        const isAssigned = Array.from(assignments.values()).includes(pair.description);
+        const card = document.createElement('button');
+        card.className = 'card' + (isAssigned ? ' assigned-card' : '');
+        card.type = 'button';
+        card.role = 'listitem';
+        card.id = 'desc-' + idx;
+        card.setAttribute('aria-selected', String(selectedDescId === card.id));
+        card.textContent = pair.description;
+
+        // Tap-to-select (fallback and quick assignment)
+        card.addEventListener('click', () => {
+          selectedDescId = (selectedDescId === card.id) ? null : card.id;
+          updateSelectionStyles();
+        });
+
+        // Enable drag-and-drop on iPad and desktop
+        attachDragHandlers(card, pair.description);
+
+        descList.appendChild(card);
+      });
+    }
+
+    function updateSelectionStyles() {
+      for (const el of descList.querySelectorAll('.card')) {
+        el.setAttribute('aria-selected', String(el.id === selectedDescId));
+      }
+    }
+
+    function renderSlots() {
+      slotsEl.innerHTML = '';
+      shuffledActors.forEach((pair) => {
+        const slot = document.createElement('div');
+        slot.className = 'slot';
+        slot.role = 'listitem';
+        slot.dataset.actor = pair.actor;
+
+        const label = document.createElement('div');
+        label.className = 'label';
+
+        const avatar = document.createElement('img');
+        avatar.className = 'avatar';
+        avatar.alt = `${pair.actor} image`;
+        avatar.src = pair.img || '';
+        avatar.onerror = () => { avatar.style.display = 'none'; };
+        label.appendChild(avatar);
+
+        const name = document.createElement('span');
+        name.textContent = pair.actor;
+        label.appendChild(name);
+
+        slot.appendChild(label);
+
+        const assigned = document.createElement('div');
+        assigned.className = 'assigned';
+        assigned.textContent = assignments.get(pair.actor) || 'Tap a description to select, then tap here to assign — or drag a card onto this slot';
+        slot.appendChild(assigned);
+
+        // Click on slot to assign selected (tap-to-select flow)
+        slot.addEventListener('click', () => {
+          if (!selectedDescId) {
+            // no selection -> if already assigned, unassign on tap
+            if (assignments.has(pair.actor)) {
+              assignments.delete(pair.actor);
+              showToast('Cleared selection for ' + pair.actor);
+              renderDescriptions();
+              renderSlots();
+            }
+            return;
+          }
+          const descIndex = parseInt(selectedDescId.split('-')[1], 10);
+          const picked = shuffledDescs[descIndex];
+
+          // Move this description from any other actor to this one
+          for (const [a, d] of assignments.entries()) {
+            if (d === picked.description) assignments.delete(a);
+          }
+          assignments.set(pair.actor, picked.description);
+
+          selectedDescId = null;
+          renderDescriptions();
+          renderSlots();
+        });
+
+        slotsEl.appendChild(slot);
+      });
+      // clear correctness styles on fresh render
+      slotsEl.querySelectorAll('.slot').forEach(s => {
+        s.classList.remove('correct', 'incorrect', 'drop-target');
+      });
+    }
+
+    function checkAnswers() {
+      const total = PAIRS.length;
+      if (assignments.size < total) {
+        showToast(`Assign all ${total} descriptions before checking.`);
+        return;
+      }
+      let correctCount = 0;
+      // compute correctness
+      slotsEl.querySelectorAll('.slot').forEach(s => {
+        const actor = s.dataset.actor;
+        const expected = PAIRS.find(p => p.actor === actor)?.description;
+        const got = assignments.get(actor);
+        const isCorrect = expected === got;
+        s.classList.toggle('correct', isCorrect);
+        s.classList.toggle('incorrect', !isCorrect);
+        if (isCorrect) correctCount++;
+      });
+
+      if (correctCount === total) {
+        successMsg.style.display = 'block';
+        hint.textContent = `Perfect score! You matched every actor.`;
+        tryAgainBtn.style.display = 'none';
+        showToast(`Perfect! ${correctCount} / ${total} correct.`);
+      } else {
+        successMsg.style.display = 'none';
+        tryAgainBtn.style.display = 'inline-block';
+        hint.textContent = `Not quite—${correctCount} of ${total} correct. Tap “Try Again” to reshuffle descriptions and retry.`;
+        showToast(`${correctCount} of ${total} correct. Try again!`);
+      }
+    }
+
+    function tryAgain() {
+      // keep the same actors visible, reshuffle description cards and clear assignments
+      assignments.clear();
+      shuffledDescs = shuffle(PAIRS);
+      successMsg.style.display = 'none';
+      tryAgainBtn.style.display = 'none';
+      hint.textContent = 'Try again: re-assign each description to the correct actor.';
+      selectedDescId = null;
+      renderDescriptions();
+      renderSlots();
+    }
+
+    function resetGame() {
+      selectedDescId = null;
+      init();
+      showToast('Game reset.');
+    }
+
+    function showToast(msg) {
+      toast.textContent = msg;
+      toast.classList.add('show');
+      clearTimeout(showToast._t);
+      showToast._t = setTimeout(() => toast.classList.remove('show'), 1500);
+    }
+
+    // Helper: find slot under a point
+    function findSlotAt(x, y) {
+      const el = document.elementFromPoint(x, y);
+      return el ? el.closest('.slot') : null;
+    }
+
+    // Touch/mouse friendly drag for a description card
+    function attachDragHandlers(cardEl, descText) {
+      let dragging = false;
+      let ghost = null;
+      let currentTarget = null;
+      let startX = 0, startY = 0;
+
+      function onPointerDown(e) {
+        startX = e.clientX ?? (e.touches?.[0]?.clientX || 0);
+        startY = e.clientY ?? (e.touches?.[0]?.clientY || 0);
+        dragging = false;
+
+        window.addEventListener('pointermove', onPointerMove, { passive: false });
+        window.addEventListener('pointerup', onPointerUp, { passive: false });
+      }
+
+      function startDrag(x, y) {
+        dragging = true;
+        cardEl.setAttribute('aria-selected', 'false');
+
+        ghost = cardEl.cloneNode(true);
+        ghost.style.position = 'fixed';
+        ghost.style.left = '0';
+        ghost.style.top = '0';
+        ghost.style.transform = `translate(${x - 24}px, ${y - 24}px) scale(1.02)`;
+        ghost.style.pointerEvents = 'none';
+        ghost.style.opacity = '0.95';
+        ghost.style.zIndex = '9999';
+        ghost.style.width = `${cardEl.getBoundingClientRect().width}px`;
+        ghost.classList.remove('assigned-card');
+        document.body.appendChild(ghost);
+      }
+
+      function onPointerMove(e) {
+        e.preventDefault();
+        const x = e.clientX ?? (e.touches?.[0]?.clientX || 0);
+        const y = e.clientY ?? (e.touches?.[0]?.clientY || 0);
+
+        if (!dragging && (Math.abs(x - startX) > 6 || Math.abs(y - startY) > 6)) {
+          startDrag(x, y);
+        }
+        if (!dragging) return;
+
+        ghost.style.transform = `translate(${x - 24}px, ${y - 24}px) scale(1.02)`;
+
+        const slot = findSlotAt(x, y);
+        if (currentTarget && currentTarget !== slot) {
+          currentTarget.classList.remove('drop-target');
+        }
+        currentTarget = slot;
+        if (currentTarget) {
+          currentTarget.classList.add('drop-target');
+        }
+      }
+
+      function onPointerUp(e) {
+        window.removeEventListener('pointermove', onPointerMove);
+        window.removeEventListener('pointerup', onPointerUp);
+
+        const x = e.clientX ?? (e.changedTouches?.[0]?.clientX || 0);
+        const y = e.clientY ?? (e.changedTouches?.[0]?.clientY || 0);
+
+        if (dragging) {
+          if (currentTarget) {
+            const actor = currentTarget.dataset.actor;
+
+            // Move this description from any other actor to the new one
+            for (const [a, d] of assignments.entries()) {
+              if (d === descText) assignments.delete(a);
+            }
+            assignments.set(actor, descText);
+
+            selectedDescId = null;
+            renderDescriptions();
+            renderSlots();
+          }
+
+          if (currentTarget) currentTarget.classList.remove('drop-target');
+          if (ghost) ghost.remove();
+        } else {
+          selectedDescId = (selectedDescId === cardEl.id) ? null : cardEl.id;
+          updateSelectionStyles();
+        }
+
+        dragging = false;
+        ghost = null;
+        currentTarget = null;
+      }
+
+      cardEl.addEventListener('pointerdown', onPointerDown, { passive: false });
+    }
+
+    // wire up
+    checkBtn.addEventListener('click', checkAnswers);
+    tryAgainBtn.addEventListener('click', tryAgain);
+    resetBtn.addEventListener('click', resetGame);
+
+    // kick off
+    init();
+  </script>
+</body>
+</html>
