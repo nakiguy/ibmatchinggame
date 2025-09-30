@@ -1,0 +1,444 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Infoblox Threat Actor Match</title>
+
+  <!-- iPad/Safari app-like behavior -->
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="theme-color" content="#0C5ADB" />
+
+  <style>
+    :root {
+      --blox-blue: #0C5ADB;
+      --blox-dark: #0F172A;
+      --blox-gray: #E5E7EB;
+      --blox-green: #10B981;
+      --blox-red: #EF4444;
+      --blox-bg: #F8FAFC;
+      --radius: 16px;
+    }
+
+    html, body {
+      margin: 0;
+      height: 100%;
+      background: var(--blox-bg);
+      color: var(--blox-dark);
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji";
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    .wrap {
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 16px 20px 32px;
+    }
+
+    header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      margin: 8px 0 16px;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .logo {
+      width: 40px;
+      height: 40px;
+      background: var(--blox-blue);
+      border-radius: 8px;
+    }
+
+    h1 {
+      font-size: 22px;
+      line-height: 1.2;
+      margin: 0;
+    }
+
+    .controls {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    button {
+      appearance: none;
+      border: 0;
+      border-radius: 999px;
+      padding: 12px 18px;
+      font-size: 16px;
+      background: var(--blox-blue);
+      color: white;
+      font-weight: 600;
+      box-shadow: 0 6px 16px rgba(12, 90, 219, 0.25);
+    }
+
+    button.secondary {
+      background: white;
+      color: var(--blox-dark);
+      border: 2px solid var(--blox-gray);
+      box-shadow: none;
+    }
+
+    button:active { transform: translateY(1px); }
+
+    .grid {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 16px;
+    }
+
+    @media (min-width: 900px) {
+      .grid {
+        grid-template-columns: 1fr 1fr;
+        gap: 22px;
+      }
+    }
+
+    .panel {
+      background: white;
+      border: 1px solid var(--blox-gray);
+      border-radius: var(--radius);
+      padding: 16px;
+      min-height: 220px;
+    }
+
+    .panel h2 {
+      font-size: 18px;
+      margin: 0 0 12px;
+    }
+
+    .list, .slots {
+      display: grid;
+      gap: 12px;
+    }
+
+    .card, .slot {
+      border: 2px solid var(--blox-gray);
+      background: #fff;
+      border-radius: 12px;
+      padding: 14px;
+      font-size: 16px;
+    }
+
+    .card {
+      box-shadow: 0 3px 10px rgba(2, 6, 23, 0.06);
+    }
+
+    .card[aria-selected="true"] {
+      outline: 3px solid var(--blox-blue);
+      border-color: var(--blox-blue);
+    }
+
+    .slot {
+      min-height: 74px;
+      display: grid;
+      align-items: center;
+      position: relative;
+      padding-top: 36px;
+    }
+
+    .slot .label {
+      position: absolute;
+      top: 6px;
+      left: 10px;
+      font-size: 13px;
+      font-weight: 700;
+      color: #4B5563;
+      text-transform: uppercase;
+      letter-spacing: .02em;
+    }
+
+    .assigned {
+      background: #F1F5F9;
+      border-radius: 10px;
+      padding: 10px;
+      font-size: 15px;
+      color: #111827;
+    }
+
+    .slot.correct { border-color: var(--blox-green); }
+    .slot.incorrect { border-color: var(--blox-red); }
+
+    .hint {
+      margin-top: 10px;
+      color: #475569;
+      font-size: 14px;
+      min-height: 22px;
+    }
+
+    .toast {
+      position: fixed;
+      left: 50%;
+      bottom: 22px;
+      transform: translateX(-50%);
+      background: #111827;
+      color: white;
+      padding: 12px 16px;
+      border-radius: 12px;
+      font-size: 15px;
+      box-shadow: 0 8px 18px rgba(2, 6, 23, 0.35);
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity .2s ease;
+    }
+    .toast.show { opacity: 1; }
+
+    .success {
+      display: none;
+      margin-top: 12px;
+      background: #ECFDF5;
+      color: #065F46;
+      border: 1px solid #A7F3D0;
+      padding: 14px;
+      border-radius: 12px;
+      font-weight: 600;
+    }
+
+    .footer {
+      margin-top: 14px;
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <div class="brand">
+        <div class="logo" aria-hidden="true"></div>
+        <div>
+          <h1>Threat Actor Match</h1>
+          <div class="hint" id="hint">Match each description to the correct actor, then tap “Check Answers”.</div>
+        </div>
+      </div>
+      <div class="controls">
+        <button class="secondary" id="resetBtn" aria-label="Reset game">Reset</button>
+        <button id="checkBtn" aria-label="Check answers">Check Answers</button>
+      </div>
+    </header>
+
+    <div class="grid">
+      <section class="panel" aria-labelledby="descTitle">
+        <h2 id="descTitle">Descriptions</h2>
+        <div class="list" id="descList" role="list"></div>
+      </section>
+
+      <section class="panel" aria-labelledby="actorTitle">
+        <h2 id="actorTitle">Actors</h2>
+        <div class="slots" id="slots" role="list"></div>
+        <div class="success" id="successMsg">Perfect! You matched all 4 correctly.</div>
+        <div class="footer">
+          <button class="secondary" id="tryAgainBtn" aria-label="Try again" style="display:none;">Try Again</button>
+        </div>
+      </section>
+    </div>
+  </div>
+
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+  <script>
+    // 1) CONTENT: Replace these with your chosen four actors and descriptions.
+    // For convenience, paste from your approved list below.
+    const PAIRS = [
+      // Example placeholders — REPLACE with the four you want for the event
+      { actor: "VexTrio Viper", description: "A large criminal enterprise using TDS, lookalike domains and RDGAs to deliver malware and scams at scale." },
+      { actor: "Savvy Seahorse", description: "A persistent investment fraud actor that uses DNS CNAME records as a TDS, often via social media ads." },
+      { actor: "Loopy Lizard", description: "A phishing actor that creates lookalike domains for banks and government services to steal credentials." },
+      { actor: "Decoy Dog", description: "A DNS C2 malware toolkit, discovered via DNS logs and used by multiple actors for command and control." },
+    ];
+
+    // 2) SHUFFLE helper
+    function shuffle(arr) {
+      const a = arr.slice();
+      for (let i = a.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [a[i], a[j]] = [a[j], a[i]];
+      }
+      return a;
+    }
+
+    // 3) STATE
+    let assignments = new Map(); // actor -> description text
+    let selectedDescId = null;
+    let shuffledDescs = [];
+    let shuffledActors = [];
+
+    const descList = document.getElementById('descList');
+    const slotsEl = document.getElementById('slots');
+    const toast = document.getElementById('toast');
+    const successMsg = document.getElementById('successMsg');
+    const tryAgainBtn = document.getElementById('tryAgainBtn');
+    const checkBtn = document.getElementById('checkBtn');
+    const resetBtn = document.getElementById('resetBtn');
+    const hint = document.getElementById('hint');
+
+    function init() {
+      assignments.clear();
+      successMsg.style.display = 'none';
+      tryAgainBtn.style.display = 'none';
+      hint.textContent = 'Match each description to the correct actor, then tap “Check Answers”.';
+
+      shuffledActors = shuffle(PAIRS);
+      shuffledDescs = shuffle(PAIRS);
+
+      renderDescriptions();
+      renderSlots();
+    }
+
+    function renderDescriptions() {
+      descList.innerHTML = '';
+      shuffledDescs.forEach((pair, idx) => {
+        const usedSomewhere = Array.from(assignments.values()).includes(pair.description);
+        const card = document.createElement('button');
+        card.className = 'card';
+        card.type = 'button';
+        card.role = 'listitem';
+        card.id = 'desc-' + idx;
+        card.setAttribute('aria-selected', String(selectedDescId === card.id));
+        card.disabled = usedSomewhere; // prevent selecting if already assigned
+        card.textContent = pair.description;
+        card.addEventListener('click', () => {
+          if (card.disabled) return;
+          if (selectedDescId === card.id) {
+            selectedDescId = null;
+          } else {
+            selectedDescId = card.id;
+          }
+          updateSelectionStyles();
+        });
+        descList.appendChild(card);
+      });
+    }
+
+    function updateSelectionStyles() {
+      for (const el of descList.querySelectorAll('.card')) {
+        el.setAttribute('aria-selected', String(el.id === selectedDescId));
+      }
+    }
+
+    function renderSlots() {
+      slotsEl.innerHTML = '';
+      shuffledActors.forEach((pair, idx) => {
+        const slot = document.createElement('div');
+        slot.className = 'slot';
+        slot.role = 'listitem';
+        slot.dataset.actor = pair.actor;
+
+        const label = document.createElement('div');
+        label.className = 'label';
+        label.textContent = pair.actor;
+        slot.appendChild(label);
+
+        const assigned = document.createElement('div');
+        assigned.className = 'assigned';
+        assigned.textContent = assignments.get(pair.actor) || 'Tap a description to select, then tap here to assign';
+        slot.appendChild(assigned);
+
+        slot.addEventListener('click', () => {
+          // assign selected description (if any)
+          if (!selectedDescId) {
+            // no selection -> if already assigned, unassign on tap
+            if (assignments.has(pair.actor)) {
+              assignments.delete(pair.actor);
+              showToast('Cleared selection for ' + pair.actor);
+              renderDescriptions();
+              renderSlots();
+            }
+            return;
+          }
+          const descIndex = parseInt(selectedDescId.split('-')[1], 10);
+          const picked = shuffledDescs[descIndex];
+          // prevent duplicate assignment
+          if (Array.from(assignments.values()).includes(picked.description)) {
+            showToast('That description is already assigned.');
+            return;
+          }
+          assignments.set(pair.actor, picked.description);
+          selectedDescId = null;
+          renderDescriptions();
+          renderSlots();
+        });
+
+        slotsEl.appendChild(slot);
+      });
+      // clear correctness styles
+      slotsEl.querySelectorAll('.slot').forEach(s => {
+        s.classList.remove('correct', 'incorrect');
+      });
+    }
+
+    function checkAnswers() {
+      if (assignments.size < PAIRS.length) {
+        showToast('Assign all four descriptions before checking.');
+        return;
+      }
+      let correctCount = 0;
+      // compute correctness
+      slotsEl.querySelectorAll('.slot').forEach(s => {
+        const actor = s.dataset.actor;
+        const expected = PAIRS.find(p => p.actor === actor)?.description;
+        const got = assignments.get(actor);
+        const isCorrect = expected === got;
+        s.classList.toggle('correct', isCorrect);
+        s.classList.toggle('incorrect', !isCorrect);
+        if (isCorrect) correctCount++;
+      });
+
+      if (correctCount === PAIRS.length) {
+        successMsg.style.display = 'block';
+        hint.textContent = 'Perfect score! You matched every actor.';
+        tryAgainBtn.style.display = 'none';
+        showToast('Perfect! 4 / 4 correct.');
+      } else {
+        successMsg.style.display = 'none';
+        tryAgainBtn.style.display = 'inline-block';
+        hint.textContent = `Not quite—${correctCount} of 4 correct. Tap “Try Again” to reshuffle descriptions and retry.`;
+        showToast(`${correctCount} of 4 correct. Try again!`);
+      }
+    }
+
+    function tryAgain() {
+      // keep the same four actors visible, but reshuffle description cards and clear assignments
+      assignments.clear();
+      shuffledDescs = shuffle(PAIRS);
+      successMsg.style.display = 'none';
+      tryAgainBtn.style.display = 'none';
+      hint.textContent = 'Try again: re-assign each description to the correct actor.';
+      selectedDescId = null;
+      renderDescriptions();
+      renderSlots();
+    }
+
+    function resetGame() {
+      selectedDescId = null;
+      init();
+      showToast('Game reset.');
+    }
+
+    function showToast(msg) {
+      toast.textContent = msg;
+      toast.classList.add('show');
+      clearTimeout(showToast._t);
+      showToast._t = setTimeout(() => toast.classList.remove('show'), 1500);
+    }
+
+    // wire up
+    checkBtn.addEventListener('click', checkAnswers);
+    tryAgainBtn.addEventListener('click', tryAgain);
+    resetBtn.addEventListener('click', resetGame);
+
+    // kick off
+    init();
+  </script>
+</body>
+</html>
