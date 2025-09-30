@@ -121,6 +121,7 @@
       gap: 12px;
     }
 
+    /* Cards (descriptions) and slots (actors) */
     .card, .slot {
       border: 2px solid var(--blox-gray);
       background: #fff;
@@ -131,11 +132,19 @@
 
     .card {
       box-shadow: 0 3px 10px rgba(2, 6, 23, 0.06);
+      /* IMPORTANT: make text visible (override global button white text) */
+      color: var(--blox-dark) !important;
+      text-align: left;
     }
 
     .card[aria-selected="true"] {
       outline: 3px solid var(--blox-blue);
       border-color: var(--blox-blue);
+    }
+
+    /* Visually indicate assigned cards but keep them interactive so users can reassign */
+    .card.assigned-card {
+      opacity: 0.6;
     }
 
     .slot {
@@ -168,6 +177,12 @@
     .slot.correct { border-color: var(--blox-green); }
     .slot.incorrect { border-color: var(--blox-red); }
 
+    /* Drop target highlight */
+    .slot.drop-target {
+      border-color: var(--blox-blue);
+      box-shadow: 0 0 0 3px rgba(12, 90, 219, 0.15) inset;
+    }
+
     .hint {
       margin-top: 10px;
       color: #475569;
@@ -189,6 +204,7 @@
       opacity: 0;
       pointer-events: none;
       transition: opacity .2s ease;
+      z-index: 10000;
     }
     .toast.show { opacity: 1; }
 
@@ -248,7 +264,6 @@
 
   <script>
     // 1) CONTENT: Replace these with your chosen four actors and descriptions.
-    // For convenience, paste from your approved list below.
     const PAIRS = [
       // Example placeholders — REPLACE with the four you want for the event
       { actor: "VexTrio Viper", description: "A large criminal enterprise using TDS, lookalike domains and RDGAs to deliver malware and scams at scale." },
@@ -298,24 +313,24 @@
     function renderDescriptions() {
       descList.innerHTML = '';
       shuffledDescs.forEach((pair, idx) => {
-        const usedSomewhere = Array.from(assignments.values()).includes(pair.description);
+        const isAssigned = Array.from(assignments.values()).includes(pair.description);
         const card = document.createElement('button');
-        card.className = 'card';
+        card.className = 'card' + (isAssigned ? ' assigned-card' : '');
         card.type = 'button';
         card.role = 'listitem';
         card.id = 'desc-' + idx;
         card.setAttribute('aria-selected', String(selectedDescId === card.id));
-        card.disabled = usedSomewhere; // prevent selecting if already assigned
         card.textContent = pair.description;
+
+        // Tap-to-select (fallback and quick assignment)
         card.addEventListener('click', () => {
-          if (card.disabled) return;
-          if (selectedDescId === card.id) {
-            selectedDescId = null;
-          } else {
-            selectedDescId = card.id;
-          }
+          selectedDescId = (selectedDescId === card.id) ? null : card.id;
           updateSelectionStyles();
         });
+
+        // Enable drag-and-drop on iPad and desktop
+        attachDragHandlers(card, pair.description);
+
         descList.appendChild(card);
       });
     }
@@ -341,11 +356,11 @@
 
         const assigned = document.createElement('div');
         assigned.className = 'assigned';
-        assigned.textContent = assignments.get(pair.actor) || 'Tap a description to select, then tap here to assign';
+        assigned.textContent = assignments.get(pair.actor) || 'Tap a description to select, then tap here to assign — or drag a card onto this slot';
         slot.appendChild(assigned);
 
+        // Click on slot to assign selected (tap-to-select flow)
         slot.addEventListener('click', () => {
-          // assign selected description (if any)
           if (!selectedDescId) {
             // no selection -> if already assigned, unassign on tap
             if (assignments.has(pair.actor)) {
@@ -358,12 +373,13 @@
           }
           const descIndex = parseInt(selectedDescId.split('-')[1], 10);
           const picked = shuffledDescs[descIndex];
-          // prevent duplicate assignment
-          if (Array.from(assignments.values()).includes(picked.description)) {
-            showToast('That description is already assigned.');
-            return;
+
+          // Move this description from any other actor to this one
+          for (const [a, d] of assignments.entries()) {
+            if (d === picked.description) assignments.delete(a);
           }
           assignments.set(pair.actor, picked.description);
+
           selectedDescId = null;
           renderDescriptions();
           renderSlots();
@@ -371,9 +387,9 @@
 
         slotsEl.appendChild(slot);
       });
-      // clear correctness styles
+      // clear correctness styles on fresh render
       slotsEl.querySelectorAll('.slot').forEach(s => {
-        s.classList.remove('correct', 'incorrect');
+        s.classList.remove('correct', 'incorrect', 'drop-target');
       });
     }
 
@@ -430,6 +446,113 @@
       toast.classList.add('show');
       clearTimeout(showToast._t);
       showToast._t = setTimeout(() => toast.classList.remove('show'), 1500);
+    }
+
+    // Helper: find slot under a point
+    function findSlotAt(x, y) {
+      const el = document.elementFromPoint(x, y);
+      return el ? el.closest('.slot') : null;
+    }
+
+    // Touch/mouse friendly drag for a description card
+    function attachDragHandlers(cardEl, descText) {
+      let dragging = false;
+      let ghost = null;
+      let currentTarget = null;
+      let startX = 0, startY = 0;
+
+      function onPointerDown(e) {
+        // capture movement
+        startX = e.clientX ?? (e.touches?.[0]?.clientX || 0);
+        startY = e.clientY ?? (e.touches?.[0]?.clientY || 0);
+        dragging = false;
+
+        window.addEventListener('pointermove', onPointerMove, { passive: false });
+        window.addEventListener('pointerup', onPointerUp, { passive: false });
+      }
+
+      function startDrag(x, y) {
+        dragging = true;
+        cardEl.setAttribute('aria-selected', 'false');
+
+        ghost = cardEl.cloneNode(true);
+        ghost.style.position = 'fixed';
+        ghost.style.left = '0';
+        ghost.style.top = '0';
+        ghost.style.transform = `translate(${x - 24}px, ${y - 24}px) scale(1.02)`;
+        ghost.style.pointerEvents = 'none';
+        ghost.style.opacity = '0.95';
+        ghost.style.zIndex = '9999';
+        ghost.style.width = `${cardEl.getBoundingClientRect().width}px`;
+        ghost.classList.remove('assigned-card');
+        document.body.appendChild(ghost);
+      }
+
+      function onPointerMove(e) {
+        // prevent page scroll while dragging
+        e.preventDefault();
+
+        const x = e.clientX ?? (e.touches?.[0]?.clientX || 0);
+        const y = e.clientY ?? (e.touches?.[0]?.clientY || 0);
+
+        // only start drag after a small threshold so taps still work
+        if (!dragging && (Math.abs(x - startX) > 6 || Math.abs(y - startY) > 6)) {
+          startDrag(x, y);
+        }
+
+        if (!dragging) return;
+
+        ghost.style.transform = `translate(${x - 24}px, ${y - 24}px) scale(1.02)`;
+
+        // highlight drop target
+        const slot = findSlotAt(x, y);
+        if (currentTarget && currentTarget !== slot) {
+          currentTarget.classList.remove('drop-target');
+        }
+        currentTarget = slot;
+        if (currentTarget) {
+          currentTarget.classList.add('drop-target');
+        }
+      }
+
+      function onPointerUp(e) {
+        window.removeEventListener('pointermove', onPointerMove);
+        window.removeEventListener('pointerup', onPointerUp);
+
+        const x = e.clientX ?? (e.changedTouches?.[0]?.clientX || 0);
+        const y = e.clientY ?? (e.changedTouches?.[0]?.clientY || 0);
+
+        if (dragging) {
+          // drop handling
+          if (currentTarget) {
+            const actor = currentTarget.dataset.actor;
+
+            // Move this description from any other actor to the new one
+            for (const [a, d] of assignments.entries()) {
+              if (d === descText) assignments.delete(a);
+            }
+            assignments.set(actor, descText);
+
+            // re-render UI
+            selectedDescId = null;
+            renderDescriptions();
+            renderSlots();
+          }
+
+          if (currentTarget) currentTarget.classList.remove('drop-target');
+          if (ghost) ghost.remove();
+        } else {
+          // treat as a simple tap-to-select if not dragged
+          selectedDescId = (selectedDescId === cardEl.id) ? null : cardEl.id;
+          updateSelectionStyles();
+        }
+
+        dragging = false;
+        ghost = null;
+        currentTarget = null;
+      }
+
+      cardEl.addEventListener('pointerdown', onPointerDown, { passive: false });
     }
 
     // wire up
