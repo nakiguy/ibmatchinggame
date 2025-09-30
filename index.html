@@ -53,9 +53,10 @@
     }
 
     .brand-logo {
-      width: 140px;
+      width: 160px;
       height: 40px;
       object-fit: contain;
+      display: block;
     }
 
     h1 {
@@ -135,6 +136,9 @@
       box-shadow: 0 3px 10px rgba(2, 6, 23, 0.06);
       color: var(--blox-dark) !important; /* ensure visible text on buttons */
       text-align: left;
+      touch-action: none; /* smoother pointer drag on touch */
+      user-select: none;
+      -webkit-user-select: none;
     }
 
     .card[aria-selected="true"] {
@@ -147,36 +151,35 @@
     }
 
     .slot {
-      min-height: 86px;
+      min-height: 96px;
       display: grid;
-      align-items: center;
-      position: relative;
-      padding-top: 48px; /* space for label row with image */
+      align-items: start;
+      gap: 10px;
+      padding-top: 6px;
     }
 
-    .slot .label {
-      position: absolute;
-      top: 6px;
-      left: 10px;
-      right: 10px;
+    .slot .top {
       display: flex;
       align-items: center;
-      gap: 10px;
-      font-size: 13px;
-      font-weight: 700;
-      color: #4B5563;
-      text-transform: uppercase;
-      letter-spacing: .02em;
+      gap: 12px;
+      min-height: 56px;
     }
 
-    .slot .label .avatar {
-      width: 28px;
-      height: 28px;
-      border-radius: 50%;
+    /* SVGs or PNGs both work here */
+    .actor-photo {
+      width: 56px;
+      height: 56px;
+      border-radius: 10px;
       object-fit: cover;
-      background: #E2E8F0;
-      border: 1px solid #CBD5E1;
-      flex: 0 0 28px;
+      background: #f8fafc;
+      border: 1px solid var(--blox-gray);
+      flex: 0 0 auto;
+    }
+
+    .label {
+      font-size: 16px;
+      font-weight: 700;
+      color: #1f2937;
     }
 
     .assigned {
@@ -276,58 +279,65 @@
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
   <script>
-    // 0) CONFIG: point this to your logo file (PNG or SVG). Place the file in assets/.
-    const LOGO_SRC = 'assets/infoblox-logo.svg';
+    // 0) CONFIG: path to your Infoblox logo (SVG or PNG)
+    var LOGO_SRC = 'assets/infoblox-logo.svg';
 
-    // 1) CONTENT: Replace with your approved actors/descriptions and image files.
-    // NOTE: You can use 4 or 5 actors. The UI will adapt automatically.
-    const PAIRS = [
-      { actor: "VexTrio Viper", img: "assets/vextrio-viper.png", description: "A large criminal enterprise using TDS, lookalike domains and RDGAs to deliver malware and scams at scale." },
-      { actor: "Savvy Seahorse", img: "assets/savvy-seahorse.png", description: "A persistent investment fraud actor that uses DNS CNAME records as a TDS, often via social media ads." },
-      { actor: "Loopy Lizard", img: "assets/loopy-lizard.png", description: "A phishing actor that creates lookalike domains for banks and government services to steal credentials." },
-      { actor: "Decoy Dog", img: "assets/decoy-dog.png", description: "A DNS C2 malware toolkit, discovered via DNS logs and used by multiple actors for command and control." },
-      // Added per request:
-      { actor: "Revolver Rabbit", img: "assets/revolver-rabbit.png", description: "An actor associated with rotating domain infrastructure and short-lived campaigns leveraging DNS for redirection." } // Replace with your approved wording if needed
+    // 1) CONTENT: you can use SVGs or PNGs for img fields below
+    // Keep 4 (original spec) or include 5 with Revolver Rabbit—the UI adapts automatically.
+    var PAIRS = [
+      { actor: "VexTrio Viper", img: "viper.svg", description: "A large criminal enterprise using TDS, lookalike domains and RDGAs to deliver malware and scams at scale." },
+      { actor: "Savvy Seahorse", img: "savvy-seahorse.svg", description: "A persistent investment fraud actor that uses DNS CNAME records as a TDS, often via social media ads." },
+      { actor: "Loopy Lizard", img: "loopy-lizard.svg", description: "A phishing actor that creates lookalike domains for banks and government services to steal credentials." },
+      { actor: "Decoy Dog", img: "decoy-dog.svg", description: "A DNS C2 malware toolkit, discovered via DNS logs and used by multiple actors for command and control." },
+      { actor: "Revolver Rabbit", img: "revolver-rabbit.svg", description: "An actor associated with rotating domain infrastructure and short-lived campaigns leveraging DNS for redirection." }
     ];
 
     // 2) SHUFFLE helper
     function shuffle(arr) {
-      const a = arr.slice();
-      for (let i = a.length - 1; i > 0; i--) {
-        const j = Math.floor(Math.random() * (i + 1));
-        [a[i], a[j]] = [a[j], a[i]];
+      var a = arr.slice();
+      for (var i = a.length - 1; i > 0; i--) {
+        var j = Math.floor(Math.random() * (i + 1));
+        var tmp = a[i];
+        a[i] = a[j];
+        a[j] = tmp;
       }
       return a;
     }
 
-    // 3) STATE
-    let assignments = new Map(); // actor -> description text
-    let selectedDescId = null;
-    let shuffledDescs = [];
-    let shuffledActors = [];
+    // 3) Pointer coordinate helper (compatible with older Safari)
+    function getPoint(e) {
+      if (typeof e.clientX === 'number' && typeof e.clientY === 'number') {
+        return { x: e.clientX, y: e.clientY };
+      }
+      var t = (e.touches && e.touches[0]) || (e.changedTouches && e.changedTouches[0]);
+      return t ? { x: t.clientX, y: t.clientY } : { x: 0, y: 0 };
+    }
 
-    const brandLogo = document.getElementById('brandLogo');
-    const descList = document.getElementById('descList');
-    const slotsEl = document.getElementById('slots');
-    const toast = document.getElementById('toast');
-    const successMsg = document.getElementById('successMsg');
-    const tryAgainBtn = document.getElementById('tryAgainBtn');
-    const checkBtn = document.getElementById('checkBtn');
-    const resetBtn = document.getElementById('resetBtn');
-    const hint = document.getElementById('hint');
+    // 4) STATE
+    var assignments = new Map(); // actor -> description text
+    var selectedDescId = null;
+    var shuffledDescs = [];
+    var shuffledActors = [];
+
+    var brandLogo = document.getElementById('brandLogo');
+    var descList = document.getElementById('descList');
+    var slotsEl = document.getElementById('slots');
+    var toast = document.getElementById('toast');
+    var successMsg = document.getElementById('successMsg');
+    var tryAgainBtn = document.getElementById('tryAgainBtn');
+    var checkBtn = document.getElementById('checkBtn');
+    var resetBtn = document.getElementById('resetBtn');
+    var hint = document.getElementById('hint');
 
     function init() {
       // set logo
       brandLogo.src = LOGO_SRC;
-      brandLogo.onerror = () => {
-        // if logo missing, hide img to keep header clean
-        brandLogo.style.display = 'none';
-      };
+      brandLogo.onerror = function() { brandLogo.style.display = 'none'; };
 
       assignments.clear();
       successMsg.style.display = 'none';
       tryAgainBtn.style.display = 'none';
-      hint.textContent = `Match each description to the correct actor, then tap “Check Answers”.`;
+      hint.textContent = 'Match each description to the correct actor, then tap “Check Answers”.';
 
       shuffledActors = shuffle(PAIRS);
       shuffledDescs = shuffle(PAIRS);
@@ -338,131 +348,152 @@
 
     function renderDescriptions() {
       descList.innerHTML = '';
-      shuffledDescs.forEach((pair, idx) => {
-        const isAssigned = Array.from(assignments.values()).includes(pair.description);
-        const card = document.createElement('button');
+      for (var i = 0; i < shuffledDescs.length; i++) {
+        var pair = shuffledDescs[i];
+        var values = Array.from(assignments.values());
+        var isAssigned = values.indexOf(pair.description) !== -1;
+
+        var card = document.createElement('button');
         card.className = 'card' + (isAssigned ? ' assigned-card' : '');
         card.type = 'button';
         card.role = 'listitem';
-        card.id = 'desc-' + idx;
+        card.id = 'desc-' + i;
         card.setAttribute('aria-selected', String(selectedDescId === card.id));
         card.textContent = pair.description;
 
         // Tap-to-select (fallback and quick assignment)
-        card.addEventListener('click', () => {
-          selectedDescId = (selectedDescId === card.id) ? null : card.id;
-          updateSelectionStyles();
-        });
+        card.addEventListener('click', (function(cId) {
+          return function() {
+            selectedDescId = (selectedDescId === cId) ? null : cId;
+            updateSelectionStyles();
+          };
+        })(card.id));
 
-        // Enable drag-and-drop on iPad and desktop
+        // Drag-and-drop
         attachDragHandlers(card, pair.description);
 
         descList.appendChild(card);
-      });
+      }
     }
 
     function updateSelectionStyles() {
-      for (const el of descList.querySelectorAll('.card')) {
+      var cards = descList.querySelectorAll('.card');
+      for (var i = 0; i < cards.length; i++) {
+        var el = cards[i];
         el.setAttribute('aria-selected', String(el.id === selectedDescId));
       }
     }
 
     function renderSlots() {
       slotsEl.innerHTML = '';
-      shuffledActors.forEach((pair) => {
-        const slot = document.createElement('div');
+      for (var i = 0; i < shuffledActors.length; i++) {
+        var pair = shuffledActors[i];
+
+        var slot = document.createElement('div');
         slot.className = 'slot';
         slot.role = 'listitem';
         slot.dataset.actor = pair.actor;
 
-        const label = document.createElement('div');
+        var top = document.createElement('div');
+        top.className = 'top';
+
+        var img = document.createElement('img');
+        img.className = 'actor-photo';
+        img.src = pair.img || '';
+        img.alt = pair.actor + ' image';
+        img.loading = 'lazy';
+        img.referrerPolicy = 'no-referrer';
+        img.onerror = function() { this.style.visibility = 'hidden'; };
+
+        var label = document.createElement('div');
         label.className = 'label';
+        label.textContent = pair.actor;
 
-        const avatar = document.createElement('img');
-        avatar.className = 'avatar';
-        avatar.alt = `${pair.actor} image`;
-        avatar.src = pair.img || '';
-        avatar.onerror = () => { avatar.style.display = 'none'; };
-        label.appendChild(avatar);
+        top.appendChild(img);
+        top.appendChild(label);
+        slot.appendChild(top);
 
-        const name = document.createElement('span');
-        name.textContent = pair.actor;
-        label.appendChild(name);
-
-        slot.appendChild(label);
-
-        const assigned = document.createElement('div');
+        var assigned = document.createElement('div');
         assigned.className = 'assigned';
         assigned.textContent = assignments.get(pair.actor) || 'Tap a description to select, then tap here to assign — or drag a card onto this slot';
         slot.appendChild(assigned);
 
         // Click on slot to assign selected (tap-to-select flow)
-        slot.addEventListener('click', () => {
-          if (!selectedDescId) {
-            // no selection -> if already assigned, unassign on tap
-            if (assignments.has(pair.actor)) {
-              assignments.delete(pair.actor);
-              showToast('Cleared selection for ' + pair.actor);
-              renderDescriptions();
-              renderSlots();
+        slot.addEventListener('click', (function(actorName) {
+          return function() {
+            if (!selectedDescId) {
+              // no selection -> if already assigned, unassign on tap
+              if (assignments.has(actorName)) {
+                assignments.delete(actorName);
+                showToast('Cleared selection for ' + actorName);
+                renderDescriptions();
+                renderSlots();
+              }
+              return;
             }
-            return;
-          }
-          const descIndex = parseInt(selectedDescId.split('-')[1], 10);
-          const picked = shuffledDescs[descIndex];
+            var descIndex = parseInt(selectedDescId.split('-')[1], 10);
+            var picked = shuffledDescs[descIndex];
 
-          // Move this description from any other actor to this one
-          for (const [a, d] of assignments.entries()) {
-            if (d === picked.description) assignments.delete(a);
-          }
-          assignments.set(pair.actor, picked.description);
+            // Move this description from any other actor to this one
+            var entries = Array.from(assignments.entries());
+            for (var j = 0; j < entries.length; j++) {
+              var a = entries[j][0];
+              var d = entries[j][1];
+              if (d === picked.description) assignments.delete(a);
+            }
+            assignments.set(actorName, picked.description);
 
-          selectedDescId = null;
-          renderDescriptions();
-          renderSlots();
-        });
+            selectedDescId = null;
+            renderDescriptions();
+            renderSlots();
+          };
+        })(pair.actor));
 
         slotsEl.appendChild(slot);
-      });
+      }
       // clear correctness styles on fresh render
-      slotsEl.querySelectorAll('.slot').forEach(s => {
-        s.classList.remove('correct', 'incorrect', 'drop-target');
-      });
+      var allSlots = slotsEl.querySelectorAll('.slot');
+      for (var k = 0; k < allSlots.length; k++) {
+        allSlots[k].classList.remove('correct', 'incorrect', 'drop-target');
+      }
     }
 
     function checkAnswers() {
-      const total = PAIRS.length;
+      var total = PAIRS.length;
       if (assignments.size < total) {
-        showToast(`Assign all ${total} descriptions before checking.`);
+        showToast('Assign all ' + total + ' descriptions before checking.');
         return;
       }
-      let correctCount = 0;
-      // compute correctness
-      slotsEl.querySelectorAll('.slot').forEach(s => {
-        const actor = s.dataset.actor;
-        const expected = PAIRS.find(p => p.actor === actor)?.description;
-        const got = assignments.get(actor);
-        const isCorrect = expected === got;
-        s.classList.toggle('correct', isCorrect);
-        s.classList.toggle('incorrect', !isCorrect);
-        if (isCorrect) correctCount++;
-      });
+      var correctCount = 0;
+
+      var allSlots = slotsEl.querySelectorAll('.slot');
+      for (var i = 0; i < allSlots.length; i++) {
+        var s = allSlots[i];
+        var actor = s.dataset.actor;
+        var expected = null;
+        for (var j = 0; j < PAIRS.length; j++) {
+          if (PAIRS[j].actor === actor) { expected = PAIRS[j].description; break; }
+        }
+        var got = assignments.get(actor);
+        var isCorrect = expected === got;
+        if (isCorrect) { s.classList.add('correct'); s.classList.remove('incorrect'); correctCount++; }
+        else { s.classList.add('incorrect'); s.classList.remove('correct'); }
+      }
 
       if (correctCount === total) {
         successMsg.style.display = 'block';
-        hint.textContent = `Perfect score! You matched every actor.`;
+        hint.textContent = 'Perfect score! You matched every actor.';
         tryAgainBtn.style.display = 'none';
-        showToast(`Perfect! ${correctCount} / ${total} correct.`);
+        showToast('Perfect! ' + correctCount + ' / ' + total + ' correct.');
       } else {
         successMsg.style.display = 'none';
         tryAgainBtn.style.display = 'inline-block';
-        hint.textContent = `Not quite—${correctCount} of ${total} correct. Tap “Try Again” to reshuffle descriptions and retry.`;
-        showToast(`${correctCount} of ${total} correct. Try again!`);
+        hint.textContent = 'Not quite—' + correctCount + ' of ' + total + ' correct. Tap “Try Again” to reshuffle descriptions and retry.';
+        showToast(correctCount + ' of ' + total + ' correct. Try again!');
       }
     }
 
     function tryAgain() {
-      // keep the same actors visible, reshuffle description cards and clear assignments
       assignments.clear();
       shuffledDescs = shuffle(PAIRS);
       successMsg.style.display = 'none';
@@ -483,25 +514,26 @@
       toast.textContent = msg;
       toast.classList.add('show');
       clearTimeout(showToast._t);
-      showToast._t = setTimeout(() => toast.classList.remove('show'), 1500);
+      showToast._t = setTimeout(function() { toast.classList.remove('show'); }, 1500);
     }
 
     // Helper: find slot under a point
     function findSlotAt(x, y) {
-      const el = document.elementFromPoint(x, y);
+      var el = document.elementFromPoint(x, y);
       return el ? el.closest('.slot') : null;
     }
 
     // Touch/mouse friendly drag for a description card
     function attachDragHandlers(cardEl, descText) {
-      let dragging = false;
-      let ghost = null;
-      let currentTarget = null;
-      let startX = 0, startY = 0;
+      var dragging = false;
+      var ghost = null;
+      var currentTarget = null;
+      var startX = 0, startY = 0;
 
       function onPointerDown(e) {
-        startX = e.clientX ?? (e.touches?.[0]?.clientX || 0);
-        startY = e.clientY ?? (e.touches?.[0]?.clientY || 0);
+        var p = getPoint(e);
+        startX = p.x;
+        startY = p.y;
         dragging = false;
 
         window.addEventListener('pointermove', onPointerMove, { passive: false });
@@ -516,28 +548,28 @@
         ghost.style.position = 'fixed';
         ghost.style.left = '0';
         ghost.style.top = '0';
-        ghost.style.transform = `translate(${x - 24}px, ${y - 24}px) scale(1.02)`;
+        ghost.style.transform = 'translate(' + (x - 24) + 'px, ' + (y - 24) + 'px) scale(1.02)';
         ghost.style.pointerEvents = 'none';
         ghost.style.opacity = '0.95';
         ghost.style.zIndex = '9999';
-        ghost.style.width = `${cardEl.getBoundingClientRect().width}px`;
+        ghost.style.width = cardEl.getBoundingClientRect().width + 'px';
         ghost.classList.remove('assigned-card');
         document.body.appendChild(ghost);
       }
 
       function onPointerMove(e) {
         e.preventDefault();
-        const x = e.clientX ?? (e.touches?.[0]?.clientX || 0);
-        const y = e.clientY ?? (e.touches?.[0]?.clientY || 0);
+        var p = getPoint(e);
+        var x = p.x, y = p.y;
 
         if (!dragging && (Math.abs(x - startX) > 6 || Math.abs(y - startY) > 6)) {
           startDrag(x, y);
         }
         if (!dragging) return;
 
-        ghost.style.transform = `translate(${x - 24}px, ${y - 24}px) scale(1.02)`;
+        ghost.style.transform = 'translate(' + (x - 24) + 'px, ' + (y - 24) + 'px) scale(1.02)';
 
-        const slot = findSlotAt(x, y);
+        var slot = findSlotAt(x, y);
         if (currentTarget && currentTarget !== slot) {
           currentTarget.classList.remove('drop-target');
         }
@@ -551,15 +583,18 @@
         window.removeEventListener('pointermove', onPointerMove);
         window.removeEventListener('pointerup', onPointerUp);
 
-        const x = e.clientX ?? (e.changedTouches?.[0]?.clientX || 0);
-        const y = e.clientY ?? (e.changedTouches?.[0]?.clientY || 0);
+        var p = getPoint(e);
+        var x = p.x, y = p.y;
 
         if (dragging) {
           if (currentTarget) {
-            const actor = currentTarget.dataset.actor;
+            var actor = currentTarget.dataset.actor;
 
             // Move this description from any other actor to the new one
-            for (const [a, d] of assignments.entries()) {
+            var entries = Array.from(assignments.entries());
+            for (var i = 0; i < entries.length; i++) {
+              var a = entries[i][0];
+              var d = entries[i][1];
               if (d === descText) assignments.delete(a);
             }
             assignments.set(actor, descText);
