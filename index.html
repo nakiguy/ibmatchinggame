@@ -8,16 +8,36 @@
   <!-- iPad/Safari app-like behavior -->
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-  <meta name="theme-color" content="#0C5ADB" />
+  <!-- Use Infoblox Black for OS chrome on mobile -->
+  <meta name="theme-color" content="#101820" />
+
+  <!-- Lato (temporary external fallback until Alliance is licensed/hosted) -->
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Lato:wght@300;400;600;700;900&display=swap" rel="stylesheet">
 
   <style>
     :root {
-      --blox-blue: #0C5ADB;
-      --blox-dark: #0F172A;
-      --blox-gray: #E5E7EB;
-      --blox-green: #10B981;
-      --blox-red: #EF4444;
-      --blox-bg: #F8FAFC;
+      /* Infoblox brand palette */
+      --ib-black: #101820;
+      --ib-green: #00BD4D;
+      --ib-offwhite: #F0EFE9;
+      --ib-teal: #00E2EC;    /* sparing accent only */
+      --ib-yellow: #FEDD00;  /* sparing accent only */
+      --ib-steel: #D9E1E2;
+
+      /* Tertiary accent used for error/negative */
+      --ib-coral: #FF585D;
+
+      /* Primary gradient (use once per page, on dark backgrounds) */
+      --ib-gradient: linear-gradient(90deg, #FEDD00 0%, #00BD4D 65%, #00E2EC 100%);
+
+      /* Map existing variables to brand */
+      --blox-blue: var(--ib-green);         /* primary CTA color now Infoblox Green */
+      --blox-dark: var(--ib-black);         /* base dark */
+      --blox-gray: var(--ib-steel);         /* neutral border/background tint */
+      --blox-green: var(--ib-green);        /* success/positive */
+      --blox-red: var(--ib-coral);          /* error/negative */
+      --blox-bg: var(--ib-black);           /* page background is Infoblox Black */
       --radius: 16px;
     }
 
@@ -25,8 +45,8 @@
       margin: 0;
       height: 100%;
       background: var(--blox-bg);
-      color: var(--blox-dark);
-      font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji";
+      color: #FFFFFF; /* text on dark background */
+      font-family: "Lato", system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji";
       -webkit-tap-highlight-color: transparent;
     }
 
@@ -60,9 +80,20 @@
     }
 
     h1 {
-      font-size: 22px;
+      font-family: "Lato", system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      font-size: 24px;
       line-height: 1.2;
       margin: 0;
+      letter-spacing: 0;           /* Tracking: 0 */
+      text-transform: uppercase;   /* Headlines in ALL CAPS when short */
+    }
+
+    /* Gradient headline highlight (only on dark background; single use) */
+    .headline--highlight {
+      background: var(--ib-gradient);
+      -webkit-background-clip: text;
+      background-clip: text;
+      color: transparent;
     }
 
     .controls {
@@ -77,15 +108,16 @@
       border-radius: 999px;
       padding: 12px 18px;
       font-size: 16px;
-      background: var(--blox-blue);
-      color: white;
-      font-weight: 600;
-      box-shadow: 0 6px 16px rgba(12, 90, 219, 0.25);
+      background: var(--blox-blue); /* Infoblox Green */
+      color: #FFFFFF;
+      font-weight: 700;             /* CTA buttons bold */
+      text-transform: uppercase;    /* CTA buttons in ALL CAPS */
+      box-shadow: 0 6px 16px rgba(0, 189, 77, 0.25); /* green glow */
     }
 
     button.secondary {
-      background: white;
-      color: var(--blox-dark);
+      background: transparent;      /* on dark, keep secondary minimal */
+      color: #FFFFFF;
       border: 2px solid var(--blox-gray);
       box-shadow: none;
     }
@@ -106,16 +138,21 @@
     }
 
     .panel {
-      background: white;
+      background: #FFFFFF;          /* white panels over black bg for readability */
       border: 1px solid var(--blox-gray);
       border-radius: var(--radius);
       padding: 16px;
       min-height: 220px;
+      color: var(--blox-dark);      /* dark text inside white panel */
     }
 
     .panel h2 {
+      font-family: "Lato", system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
       font-size: 18px;
       margin: 0 0 12px;
+      letter-spacing: 0;
+      text-transform: none;         /* subheads typically sentence case */
+      font-weight: 600;             /* SemiBold */
     }
 
     .list, .slots {
@@ -126,7 +163,7 @@
     /* Cards (descriptions) and slots (actors) */
     .card, .slot {
       border: 2px solid var(--blox-gray);
-      background: #fff;
+      background: #FFFFFF;
       border-radius: 12px;
       padding: 14px;
       font-size: 16px;
@@ -139,6 +176,9 @@
       touch-action: none; /* smoother pointer drag on touch */
       user-select: none;
       -webkit-user-select: none;
+      font-family: "Lato", system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      font-weight: 400;             /* body Regular */
+      line-height: 1.2;             /* ~120% leading */
     }
 
     .card[aria-selected="true"] {
@@ -171,15 +211,16 @@
       height: 56px;
       border-radius: 10px;
       object-fit: cover;
-      background: #f8fafc;
+      background: var(--ib-offwhite);
       border: 1px solid var(--blox-gray);
       flex: 0 0 auto;
     }
 
     .label {
+      font-family: "Lato", system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
       font-size: 16px;
       font-weight: 700;
-      color: #1f2937;
+      color: #1F2937;
     }
 
     .assigned {
@@ -190,18 +231,18 @@
       color: #111827;
     }
 
-    .slot.correct { border-color: var(--blox-green); }
-    .slot.incorrect { border-color: var(--blox-red); }
+    .slot.correct { border-color: var(--blox-green); }   /* Infoblox Green */
+    .slot.incorrect { border-color: var(--blox-red); }   /* Infoblox Coral */
 
     /* Drop target highlight */
     .slot.drop-target {
       border-color: var(--blox-blue);
-      box-shadow: 0 0 0 3px rgba(12, 90, 219, 0.15) inset;
+      box-shadow: 0 0 0 3px rgba(0, 189, 77, 0.15) inset;
     }
 
     .hint {
       margin-top: 10px;
-      color: #475569;
+      color: var(--ib-steel); /* readable hint on dark header */
       font-size: 14px;
       min-height: 22px;
     }
@@ -212,7 +253,7 @@
       bottom: 22px;
       transform: translateX(-50%);
       background: #111827;
-      color: white;
+      color: #FFFFFF;
       padding: 12px 16px;
       border-radius: 12px;
       font-size: 15px;
@@ -249,7 +290,7 @@
       <div class="brand">
         <img id="brandLogo" class="brand-logo" alt="Infoblox logo" />
         <div>
-          <h1>Threat Actor Match</h1>
+          <h1 class="headline headline--highlight">Threat Actor Match</h1>
           <div class="hint" id="hint">Match each description to the correct actor, then tap “Check Answers”.</div>
         </div>
       </div>
@@ -283,7 +324,6 @@
     var LOGO_SRC = 'infoblox-logo.svg';
 
     // 1) CONTENT: you can use SVGs or PNGs for img fields below
-    // Keep 4 (original spec) or include 5 with Revolver Rabbit—the UI adapts automatically.
     var PAIRS = [
       { actor: "VexTrio Viper", img: "viper.svg", description: "A large criminal enterprise using TDS, lookalike domains and RDGAs to deliver malware and scams at scale." },
       { actor: "Savvy Seahorse", img: "savvy-seahorse.svg", description: "A persistent investment fraud actor that uses DNS CNAME records as a TDS, often via social media ads." },
